@@ -27,6 +27,10 @@
 #include <inttypes.h>
 #include <string.h>
 #include <assert.h>
+#ifdef _MSC_VER
+#include <malloc.h>
+#define alloca _alloca
+#endif
 
 #include "cutils.h"
 #include "libregexp.h"
