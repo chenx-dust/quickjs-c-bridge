@@ -40,8 +40,26 @@
 #endif
 
 #ifdef _MSC_VER
+#include <malloc.h>
+#define alloca _alloca
+#pragma function (fabs)
 #pragma function (ceil)
 #pragma function (floor)
+#pragma function (sqrt)
+#pragma function (acos)
+#pragma function (asin)
+#pragma function (atan)
+#pragma function (atan2)
+#pragma function (cos)
+#pragma function (exp)
+#pragma function (log)
+#pragma function (sin)
+#pragma function (tan)
+#pragma function (cosh)
+#pragma function (sinh)
+#pragma function (tanh)
+#pragma function (log2)
+#pragma function (log10)
 
 #include <WinSock2.h>
 
