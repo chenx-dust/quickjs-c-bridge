@@ -1,0 +1,124 @@
+name: Nightly release
+
+on:
+  push:
+    branches:
+      - "**"
+
+concurrency:
+  group: nightly-release
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  build-linux:
+    name: Linux ${{ matrix.arch }}
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: x64
+            runner: ubuntu-24.04
+          - arch: arm64
+            runner: ubuntu-24.04-arm
+
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v6
+
+      - name: Configure
+        run: cmake -S linux -B build/nightly -DCMAKE_BUILD_TYPE=Release
+
+      - name: Build
+        run: cmake --build build/nightly --config Release --parallel
+
+      - name: Package
+        env:
+          ARCH: ${{ matrix.arch }}
+        run: |
+          mkdir -p package
+          cp build/nightly/libquickjs_c_bridge_plugin.so package/
+          tar -C package -czf "quickjs-c-bridge-linux-${ARCH}.tar.gz" .
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: quickjs-c-bridge-linux-${{ matrix.arch }}
+          path: quickjs-c-bridge-linux-${{ matrix.arch }}.tar.gz
+          if-no-files-found: error
+          retention-days: 7
+
+  build-windows:
+    name: Windows ${{ matrix.arch }}
+    runs-on: windows-2022
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: x64
+            cmake_arch: x64
+          - arch: arm64
+            cmake_arch: ARM64
+
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v6
+
+      - name: Configure
+        run: cmake -S windows -B build/nightly -A ${{ matrix.cmake_arch }}
+
+      - name: Build
+        run: cmake --build build/nightly --config Release --parallel
+
+      - name: Package
+        shell: pwsh
+        env:
+          ARCH: ${{ matrix.arch }}
+        run: |
+          New-Item -ItemType Directory -Path package
+          Copy-Item build/nightly/Release/*.dll package/
+          Compress-Archive -Path package/* -DestinationPath "quickjs-c-bridge-windows-$env:ARCH.zip"
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: quickjs-c-bridge-windows-${{ matrix.arch }}
+          path: quickjs-c-bridge-windows-${{ matrix.arch }}.zip
+          if-no-files-found: error
+          retention-days: 7
+
+  release:
+    name: Publish nightly release
+    needs:
+      - build-linux
+      - build-windows
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+
+    steps:
+      - name: Download build artifacts
+        uses: actions/download-artifact@v7
+        with:
+          path: artifacts
+          pattern: quickjs-c-bridge-*
+          merge-multiple: true
+
+      - name: Generate checksums
+        working-directory: artifacts
+        run: sha256sum quickjs-c-bridge-* > SHA256SUMS
+
+      - name: Replace nightly release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release delete nightly --cleanup-tag --yes || true
+          gh release create nightly artifacts/* \
+            --target "$GITHUB_SHA" \
+            --title "Nightly $(date -u +%Y-%m-%d)" \
+            --notes "Automated nightly build from commit $GITHUB_SHA." \
+            --prerelease \
+            --latest=false
