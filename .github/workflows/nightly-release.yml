@@ -123,5 +123,4 @@ jobs:
             --target "$GITHUB_SHA" \
             --title "Nightly $(date -u +%Y-%m-%d)" \
             --notes "Automated nightly build from commit $GITHUB_SHA." \
-            --prerelease \
-            --latest=false
+            --latest
